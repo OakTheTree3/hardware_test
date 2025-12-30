@@ -1,0 +1,10 @@
+rft_sensor_serial:
+  ros__parameters:
+    DEV_NAME: "/dev/ttyUSB"
+    PORT: 0
+    BAUD: 115200
+    FORCE_DIVIDER: 50.00
+    TORQUE_DIVIDER: 2000.00
+    FREQUENCY: 200
+    SET_CUTOFF_FILTER: True
+    FILTER_FREQUENCY: 500
