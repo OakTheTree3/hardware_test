@@ -2,6 +2,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <algorithm>
 
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/wrench_stamped.hpp"
@@ -10,19 +11,18 @@
 
 using namespace std::chrono_literals;
 
-float FORCE_ERROR = 2.0;
-
 class PIDPubSubNode : public rclcpp::Node {
 public :
     PIDPubSubNode()
     : Node("pid_pubsub_node")
     {
-        publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
+        twist_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
+        error_publisher_ = this->create_publisher<geometry_msgs::msg::Wrench>("/error", 10);
         subscriber_ = this->create_subscription<geometry_msgs::msg::WrenchStamped>(
             "/RFT_FORCE", 10,
             std::bind(&PIDPubSubNode::read_ft_data, this, std::placeholders::_1));
         timer_ = this->create_wall_timer(
-            500ms, std::bind(&PIDPubSubNode::send_vel_callback, this));
+            100ms, std::bind(&PIDPubSubNode::send_vel_callback, this));
         RCLCPP_INFO(this->get_logger(), "PID NODE STARTED");
     }
 
@@ -31,8 +31,13 @@ public :
 private :
     void send_vel_callback() {
         auto vel_cmd = geometry_msgs::msg::Twist();
+        auto wrench_error = geometry_msgs::msg::Wrench();
+
         vel_cmd = pid_control(ft_data);
-        publisher_->publish(vel_cmd);
+        wrench_error.force.x = prev_error;
+
+        twist_publisher_->publish(vel_cmd);
+        error_publisher_->publish(wrench_error);
     }
 
     void read_ft_data(const geometry_msgs::msg::WrenchStamped::SharedPtr twist_stamp_msg) {
@@ -41,24 +46,30 @@ private :
 
     geometry_msgs::msg::Twist pid_control(geometry_msgs::msg::Wrench wrench_data) {
         auto output = geometry_msgs::msg::Twist();
+
+        float curr_error  = wrench_data.force.x - FORCE_ERROR;
+        float delta_error = curr_error - prev_error;
+        sum_error += curr_error * 0.5;
+        sum_error = std::max(std::min(sum_error, (float)50.0), (float)-50);
         
-        if (std::abs(wrench_data.force.z) >= FORCE_ERROR) {
-            output.linear.x = 2;
-            output.angular.z = 1;
-        } else if (std::abs(wrench_data.force.y) >= FORCE_ERROR) {
-            output.linear.x = 2;
-            output.angular.z = -1;
-        } else {
-            output.linear.x = 0.0;
-            output.angular.z = 0.0;
-        }
+        output.angular.x = K_P * curr_error + K_D * (delta_error / 0.5) + K_I * sum_error;
+        prev_error = curr_error;
 
         return output;
     }
 
     rclcpp::TimerBase::SharedPtr timer_;
-    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr publisher_;
+    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr twist_publisher_;
+    rclcpp::Publisher<geometry_msgs::msg::Wrench>::SharedPtr error_publisher_;
     rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr subscriber_;
+
+    float prev_error = 0.0;
+    float sum_error = 0.0;
+
+    float FORCE_ERROR = 0.0;
+    float K_P = -30.0;
+    float K_D = 0.0;
+    float K_I = 2.0;
 };
 
 int main(int argc, char * argv[]) {

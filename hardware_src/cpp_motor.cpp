@@ -19,7 +19,7 @@ public :
         if (comms_.connected()) {
             comms_.disconnect();
         }
-        comms_.connect("/dev/ttyACM1", 9600, 1000);
+        comms_.connect("/dev/ttyACM0", 115200, 1000);
 
         if (comms_.connected()) {
             RCLCPP_INFO(this->get_logger(), "Ready to run!");
@@ -33,7 +33,7 @@ private :
         comms_.set_motor_values(twist_command.angular.x);
     }
 
-    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscriber_;
+    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr subscriber_;
     ArduinoComms comms_;
 };
 
