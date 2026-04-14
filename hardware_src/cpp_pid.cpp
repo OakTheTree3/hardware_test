@@ -49,10 +49,10 @@ private :
 
         float curr_error  = wrench_data.force.x - FORCE_ERROR;
         float delta_error = curr_error - prev_error;
-        sum_error += curr_error * 0.5;
-        sum_error = std::max(std::min(sum_error, (float)50.0), (float)-50);
+        sum_error += curr_error * 0.1;
+        sum_error = std::max(std::min(sum_error, (float)250.0), (float)-250);
         
-        output.angular.x = K_P * curr_error + K_D * (delta_error / 0.5) + K_I * sum_error;
+        output.angular.x = K_P * curr_error + K_D * (delta_error / 0.1) + K_I * sum_error;
         prev_error = curr_error;
 
         return output;
